@@ -85,7 +85,14 @@ try:
 
         # Wait for the specific anchor to be clickable
         stock_link_par = wait.until(EC.element_to_be_clickable((By.ID, "top-level-nav-7")))
+        #stock_link_par = wait.until(EC.element_to_be_clickable((By.XPATH, "//p[text()='שוק ההון']")))
+        # This waits for any <p> tag whose title attribute contains 'שוק ההון'
+        #stock_link_par = wait.until(EC.element_to_be_clickable((By.XPATH, "//p[contains(@title, 'שוק ההון')]")))
+        print("found top-level-nav-7")
         stock_link_par.click()
+        print("clicked top-level-nav-7, sleep..")
+        time.sleep(3)
+
 
         stock_link = driver.find_element(By.XPATH, "//p[text()='התיק שלי']")
         stock_link.click()
@@ -109,7 +116,7 @@ try:
         print_select.click()
         print("See protfolio\nExporting to excel")
 
-        print(f"Sleep 3 while waiting for dowload menue to appear ... ", end="")
+        print(f"Sleep 3 while waiting for download menue to appear ... ", end="")
         time.sleep(3)
         print_select_excel = wait.until(
             #EC.presence_of_element_located((By.ID, "cc-combo-item-excel")))
