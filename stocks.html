@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Stocks Analyzer</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #output { margin-top: 20px; }
+        .container { display: flex; flex-wrap: wrap; gap: 20px; }
+        .file-summary { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .file-summary h3 { margin-top: 0; }
+        .file-summary b { cursor: pointer; color: blue; }
+        td { height:16px; max-width: 300px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+    </style>
+</head>
+<body>
+
+<h2>Select Folder Containing stockes Files</h2>
+
+<input type="file" id="folderInput" webkitdirectory multiple>
+
+<div id="output" class="container">
+    <div id="activeFiles"></div>
+    <div>
+        <div id="oneLine" style="margin-bottom:6px"></div>
+        <div class="container">
+            <div id="chart"></div>
+            <div id="graphicChartC"><canvas id="graphicChart" width="800" height="400" style="border: 1px solid #ccc;"></canvas></div>
+        </div>
+    </div>
+</div>
+<div id="dataDisplay">
+    <div style="display: table"></div>
+        <div style="display: table-cell" id="lastChange"></div>
+        <div style="display: table-cell" id="fileData"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
