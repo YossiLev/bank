@@ -11,8 +11,11 @@ const fieldDisplayNames = [
     ];
 function fixFloat(d) {
     if (typeof d === "string" && d.length == 0) {
-        return d;
-    }   
+        return "0";
+    }
+    if (typeof d === "string" && d.includes(" ")) {
+        let a = 0;
+    }
     return parseFloat(d).toFixed(4);
 }
 function convD(i, d) {
@@ -23,6 +26,9 @@ function convD(i, d) {
         case 12: return fixFloat(d);
         case 13: return d.substring(0, 5);
         case 15: return fixFloat(d);
+    }
+    if (d === undefined) {
+        let a = 0;
     }
     return d;   
 }
@@ -37,6 +43,69 @@ function getNextStock(add) {
     const nextAssetId = lastItem.data[nextIndex].assetId;
     trackStock(nextAssetId);
 }
+/**
+ * @param {HTMLCanvasElement} canvas
+ * @param {Array} dataConfigs - Array of objects: { data: [], color: string, width: number }
+ */
+function drawMultiScaleChart(canvas, dataConfigs) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const padding = 80; // Extra space for dual labels
+  const paddingY = 20;
+
+  ctx.clearRect(0, 0, W, H);
+  
+  // Calculate Min/Max for each dataset
+  console.log("=");
+  dataConfigs.forEach(config => {
+    config.min = Math.min(...config.data);
+    config.max = Math.max(...config.data);
+    console.log(`${config.min} - ${config.max}`);
+  });
+
+  const gridSteps = 5;
+
+  // 1. Draw Grid Lines
+  ctx.strokeStyle = "#ccc";
+  for (let i = 0; i <= gridSteps; i++) {
+    const y = (H - paddingY) - (i / gridSteps) * (H - 2 * paddingY);
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(W - padding, y);
+    ctx.stroke();
+  }
+
+  // 2. Draw Dual Y-Axes Labels
+  dataConfigs.forEach((config, idx) => {
+    ctx.fillStyle = config.color;
+    ctx.textAlign = idx === 0 ? "right" : "left";
+    const xPos = idx === 0 ? padding - 10 : W - padding + 10;
+
+    for (let i = 0; i <= gridSteps; i++) {
+      const y = (H - paddingY) - (i / gridSteps) * (H - 2 * paddingY);
+      const val = config.min + (i / gridSteps) * (config.max - config.min);
+      ctx.fillText(val.toFixed(1), xPos, y);
+    }
+  });
+
+  // 3. Draw Data Lines
+  dataConfigs.forEach(config => {
+    ctx.beginPath();
+    ctx.strokeStyle = config.color;
+    ctx.lineWidth = config.width || 2;
+
+    config.data.forEach((val, i) => {
+      const x = padding + (i / (config.data.length - 1)) * (W - 2 * padding);
+      const normalizedY = (val - config.min) / (config.max - config.min);
+      const y = (H - paddingY) - normalizedY * (H - 2 * paddingY);
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  });
+}
 function trackStock(assetId) {
     console.log("Tracking asset:", assetId);
     assetFocus = assetId;
@@ -47,17 +116,25 @@ function trackStock(assetId) {
             chart.push({
                 date: item.date,
                 amount: row.valueNis,
-                price: row.price,
-                quantity: row.nShares
+                price: row.price !== undefined ? row.price : 1,
+                quantity: row.nShares !== undefined ? row.nShares : 1
+            });
+        } else {
+            chart.push({
+                date: item.date,
+                amount: 0,
+                price: 0,
+                quantity: 0
             });
         }
+
     });
     // simgle table line (out of main table) of the asset at last day
     const lastDay = dataArray[0].data.find(r => r.assetId === assetId);
     if (lastDay) {
         let str = "<table>";
         str += "<tr>" + Object.entries(lastDay).map(e => `<th>${e[0]}</th>`).join("") + "</tr>";
-        str += "<tr>" + Object.entries(lastDay).map(e => `<td>${e[1]}</td>`).join("") + "</tr>";
+        str += "<tr>" + Object.entries(lastDay).map(e => `<td>${e[1]}</td>`).join("") + "</tr></table>";
         document.getElementById("oneLine").innerHTML = str;
     }
 
@@ -71,25 +148,30 @@ function trackStock(assetId) {
 
     // chart of day o day price tracking
     const canvas = document.getElementById("graphicChart");
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.beginPath();
-    const padding = 40;
-    const maxAmount = Math.max(...chart.map(i => i.amount));
-    const minAmount = Math.min(...chart.map(i => i.amount));
-    const amountRange = maxAmount - minAmount;
-    chart.toReversed().forEach((item, index) => {
-        const x = index * (canvas.width - padding * 2) / (chart.length - 1) + padding;
-        const y = canvas.height - ((item.amount - minAmount) / (amountRange || 1) * (canvas.height - padding * 2)) - padding;
-        if (index === 0) {
-            ctx.moveTo(x, y);
-        } else {
-            ctx.lineTo(x, y);
-        }
-    });
-    ctx.strokeStyle = "blue";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    const chartAmount = chart.map(i => i.amount).toReversed();
+    const dataConfigs = [{data: chartAmount, color: "red", width: 1}];
+    drawMultiScaleChart(canvas, dataConfigs);
+
+    // const ctx = canvas.getContext("2d");
+    // ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // ctx.beginPath();
+    // const padding = 40;
+
+    // const maxAmount = Math.max(...chartAmount);
+    // const minAmount = Math.min(...chartAmount);
+    // const amountRange = maxAmount - minAmount;
+    // chartAmount.forEach((amount, index) => {
+    //     const x = index * (canvas.width - padding * 2) / (chartAmount.length - 1) + padding;
+    //     const y = canvas.height - ((amount - minAmount) / (amountRange || 1) * (canvas.height - padding * 2)) - padding;
+    //     if (index === 0) {
+    //         ctx.moveTo(x, y);
+    //     } else {
+    //         ctx.lineTo(x, y);
+    //     }
+    // });
+    // ctx.strokeStyle = "blue";
+    // ctx.lineWidth = 2;
+    // ctx.stroke();
     //return chart;
 }
 document.getElementById("folderInput").addEventListener("change", async (event) => {
@@ -109,13 +191,19 @@ document.getElementById("folderInput").addEventListener("change", async (event) 
 
             const sheet = workbook.Sheets[sheetName];
             const data = XLSX.utils.sheet_to_json(sheet);
-            const processedData = data.slice(5).map((row) => {
+            const processedData = data.slice(5, -1).map((row) => {
                 const processedRow = {};
                 Object.entries(row).forEach(([key, value], index) => {
                     processedRow[fieldNames[index]] = convD(index, value);
                 });
                 return processedRow;
             });
+            const processedRow = {
+                "stockName": "Total",
+                "assetId": "Total",
+                "valueNis": parseFloat(Object.values(data.slice(-1)[0])[2].substring(-2).replaceAll(',', ''))
+            };
+            processedData.push(processedRow);
             dataArray.push({ date: file.name.split(/[\_\.]/)[1], file: file.name, sheet: sheetName, data: processedData });
 
         });
