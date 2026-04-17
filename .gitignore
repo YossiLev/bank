@@ -86,3 +86,4 @@ secrets.json
 *.tmp
 bank_data/
 *.plist
+*.zip
