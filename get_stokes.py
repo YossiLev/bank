@@ -90,29 +90,47 @@ try:
         #stock_link_par = wait.until(EC.element_to_be_clickable((By.XPATH, "//p[contains(@title, 'שוק ההון')]")))
         print("found top-level-nav-7")
         stock_link_par.click()
-        print("clicked top-level-nav-7, sleep..")
+        print("clicked top-level-nav-7, waiting for 'text = my file' sleep..")
         time.sleep(3)
 
 
         stock_link = driver.find_element(By.XPATH, "//p[text()='התיק שלי']")
+
+        print(f"my file element is {stock_link}, clicking ...")
+
         stock_link.click()
 
-        print("Go to see portfolio ... ", end="")
+        print("Go to see portfolio (wait for URL change)... ", end="")
         WebDriverWait(driver, 15).until(EC.url_changes(LOGIN_URL))
+        print("URL changed, now waiting for iframe to load ...")
 
-        # Find the iframe element
-        iframe = wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
-        # Switch the driver's focus to this iframe
-        driver.switch_to.frame(iframe)
-
-        # NOW you can look for your Hebrew text or body content
-        # The driver is now 'trapped' inside the iframe's HTML
-        wait.until(lambda d: d.find_element(By.TAG_NAME, "body").text.strip() != "")
+        time.sleep(3)
 
         # Find print element
+        print("Looking for print element outside iframe...")
         print_select = wait.until(
             EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'הדפסה')]"))
         )
+        print(f"Found print element: {print_select} not in frame")
+
+        # # Find the iframe element
+        # iframe = wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
+        # print(f"Found iframe: {iframe} - switching to it ...")
+        # # Switch the driver's focus to this iframe
+        # driver.switch_to.frame(iframe)
+        # print("Switched to iframe, now waiting for body content to load ...")
+
+        # # NOW you can look for your Hebrew text or body content
+        # # The driver is now 'trapped' inside the iframe's HTML
+        # wait.until(lambda d: d.find_element(By.TAG_NAME, "body").text.strip() != "")
+        # print("Body content loaded. waiting for print element to appear (sleep 3) ...")
+        # time.sleep(3)
+        # print("Sleep done, now looking for print element ...")
+        # # Find print element
+        # print_select = wait.until(
+        #     EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'הדפסה')]"))
+        # )
+        print(f"Found print element: {print_select}, clicking ...")
         print_select.click()
         print("See protfolio\nExporting to excel")
 
@@ -143,9 +161,12 @@ try:
         print(f"File renamed to: {os.sep.join(new_name.split(os.sep)[-3:])}")
 
     # Locate the file
-    download_path = os.path.join(os.getcwd(), "bank_data")
+    download_path = os.path.join(os.getcwd(), "bank_data/backup/newfiles/")
     list_of_files = glob.glob(os.path.join(download_path, '*.xlsx'))
+    for f in list_of_files:
+        print(f"Found file: {os.sep.join(f.split(os.sep)[-3:])} {os.path.getctime(f)}")
     latest_file = max(list_of_files, key=os.path.getctime)
+    print(f"Latest file found: {os.sep.join(latest_file.split(os.sep)[-3:])}")
 
     # Load the Excel file
     # If your Excel has headers in a specific row (e.g., row 3), use header=2
