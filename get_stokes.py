@@ -12,7 +12,12 @@ import glob
 import datetime
 import pandas as pd
 
-load_dotenv()
+#from datetime import datetime
+
+with open("/Users/yossilev/launchd_python_debug.txt", "a") as f:
+    f.write(f"RUN: {datetime.datetime.now()}\n")
+
+load_dotenv("/Users/yossilev/automation/bank/.env")
 
 LOGIN_URL = os.getenv("LOGIN_URL")
 USERNAME = os.getenv("USERNAME")
@@ -36,8 +41,8 @@ def wait_for_download(folder):
 try:
 
     # Define your custom path
-    download_path = os.path.join(os.getcwd(), "bank_data/backup/newfiles/")
-    final_path = os.path.join(os.getcwd(), "bank_data/backup/newfiles/")
+    download_path = os.path.join("/Users/yossilev/automation/bank", "bank_data/backup/newfiles/")
+    #final_path = os.path.join("/Users/yossilev/automation/bank", "bank_data/backup/newfiles/")
     # Create the folder if it doesn't exist
     if not os.path.exists(download_path):
         os.makedirs(download_path)
@@ -161,7 +166,7 @@ try:
         print(f"File renamed to: {os.sep.join(new_name.split(os.sep)[-3:])}")
 
     # Locate the file
-    download_path = os.path.join(os.getcwd(), "bank_data/backup/newfiles/")
+    download_path = os.path.join("/Users/yossilev/automation/bank", "bank_data/backup/newfiles/")
     list_of_files = glob.glob(os.path.join(download_path, '*.xlsx'))
     for f in list_of_files:
         print(f"Found file: {os.sep.join(f.split(os.sep)[-3:])} {os.path.getctime(f)}")
@@ -199,7 +204,14 @@ try:
         print("Done! finally what do you want to do with the data?\n(M - move to main folder, D - delete, K - keep in place) -> ", end="")
         user_choice = input().strip().upper()
     if user_choice == 'M':
-        main_folder = os.path.join(os.getcwd(), "bank_data/backup/")
+        main_folder = os.path.join("/Users/yossilev/automation/bank", "bank_data/backup/")
+        if not os.path.exists(main_folder):
+            os.makedirs(main_folder)
+        new_main_path = os.path.join(main_folder, os.path.basename(new_name))
+        os.rename(new_name, new_main_path)
+        print(f"File moved to: {new_main_path}")
+    elif user_choice == 'G':
+        main_folder = os.path.join("/Users/yossilev/automation/bank", "bank_data/backupG/")
         if not os.path.exists(main_folder):
             os.makedirs(main_folder)
         new_main_path = os.path.join(main_folder, os.path.basename(new_name))
