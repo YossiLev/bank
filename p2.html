@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Analyst</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0d0e11;
+    --bg2: #14161c;
+    --bg3: #1c1f28;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8e9ee;
+    --text2: #888ba0;
+    --text3: #555870;
+    --accent: #6c8ef5;
+    --accent2: #4f6de0;
+    --green: #3ecf8e;
+    --green-bg: rgba(62,207,142,0.10);
+    --red: #f56060;
+    --red-bg: rgba(245,96,96,0.10);
+    --yellow: #f5c842;
+    --yellow-bg: rgba(245,200,66,0.10);
+    --radius: 10px;
+    --font: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.5; min-height: 100vh; }
+
+  /* Layout */
+  #app { display: grid; grid-template-columns: 220px 1fr; grid-template-rows: 52px 1fr; height: 100vh; overflow: hidden; }
+  #topbar { grid-column: 1/-1; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 16px; }
+  #sidebar { background: var(--bg2); border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+  #main { overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Upload state */
+  #upload-screen { grid-column: 1/-1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: var(--bg); }
+  #upload-zone { border: 1.5px dashed var(--border2); border-radius: 16px; padding: 48px 64px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+  #upload-zone:hover { border-color: var(--accent); background: rgba(108,142,245,0.04); }
+  #upload-zone h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  #upload-zone p { color: var(--text2); font-size: 13px; }
+  #folderInput { display: none; }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.7; }
+  .btn-primary { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: 0.01em; transition: background 0.2s; }
+  .btn-primary:hover { background: var(--accent2); }
+
+  /* Topbar */
+  .logo { font-family: var(--font); font-size: 12px; color: var(--accent); letter-spacing: 0.08em; font-weight: 600; }
+  #topbar-info { margin-left: auto; display: flex; gap: 24px; align-items: center; }
+  .stat-pill { display: flex; gap: 6px; align-items: baseline; }
+  .stat-pill .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat-pill .val { font-family: var(--font); font-size: 13px; font-weight: 600; }
+  .val.pos { color: var(--green); }
+  .val.neg { color: var(--red); }
+  .val.neu { color: var(--text); }
+
+  /* Sidebar */
+  .sidebar-section { padding: 12px 0 4px; }
+  .sidebar-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; padding: 0 14px 6px; }
+  .date-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 14px; cursor: pointer; border-left: 2px solid transparent; transition: background 0.15s, border-color 0.15s; color: var(--text2); font-size: 12px; }
+  .date-item:hover { background: var(--bg3); color: var(--text); }
+  .date-item.active { border-left-color: var(--accent); background: rgba(108,142,245,0.08); color: var(--text); }
+  .date-item .date-num { font-family: var(--font); font-size: 11px; }
+  .date-item .badge { font-size: 10px; color: var(--text3); background: var(--bg3); border-radius: 4px; padding: 1px 5px; }
+  .nav-divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+  /* Summary cards */
+  .cards-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .card .card-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .card .card-val { font-family: var(--font); font-size: 20px; font-weight: 700; }
+  .card .card-sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .card.green { border-color: rgba(62,207,142,0.2); }
+  .card.red { border-color: rgba(245,96,96,0.2); }
+
+  /* Table */
+  .table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .table-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 10px; border-bottom: 1px solid var(--border); }
+  .table-title { font-size: 12px; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }
+  .search-box { background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 10px; color: var(--text); font-size: 12px; width: 180px; outline: none; font-family: var(--sans); }
+  .search-box::placeholder { color: var(--text3); }
+  .search-box:focus { border-color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px; text-align: left; white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--bg2); border-bottom: 1px solid var(--border); }
+  thead th:hover { color: var(--text2); }
+  thead th.sort-asc::after { content: ' ↑'; }
+  thead th.sort-desc::after { content: ' ↓'; }
+  tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg3); }
+  tbody tr.selected { background: rgba(108,142,245,0.08); }
+  td { padding: 8px 12px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  td.num { font-family: var(--font); text-align: right; }
+  td.pos { color: var(--green); }
+  td.neg { color: var(--red); }
+  .change-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-family: var(--font); font-size: 11px; font-weight: 600; }
+  .change-badge.pos { background: var(--green-bg); color: var(--green); }
+  .change-badge.neg { background: var(--red-bg); color: var(--red); }
+  .change-badge.neu { background: var(--bg3); color: var(--text2); }
+
+  /* Asset detail panel */
+  #detail-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  #detail-panel .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 10px; border-bottom: 1px solid var(--border); }
+  #detail-panel .panel-title { font-size: 14px; font-weight: 700; }
+  #detail-panel .panel-subtitle { font-size: 11px; color: var(--text2); }
+  #detail-nav { display: flex; gap: 4px; }
+  #detail-nav button { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); border-radius: 5px; width: 26px; height: 26px; cursor: pointer; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  #detail-nav button:hover { border-color: var(--accent); color: var(--accent); }
+  #detail-body { display: grid; grid-template-columns: 200px 1fr; gap: 0; }
+  #detail-stats { padding: 14px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  .stat-row { display: flex; flex-direction: column; gap: 2px; }
+  .stat-row .sk { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat-row .sv { font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--text); }
+  #chart-container { padding: 14px; position: relative; height: 240px; }
+  .no-data { color: var(--text3); font-size: 12px; padding: 16px; display: flex; align-items: center; justify-content: center; height: 100%; }
+
+  /* Holdings age */
+  .since-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .since-wrap .table-header { padding: 12px 16px 10px; }
+  .since-table td:first-child { color: var(--text2); }
+  .age-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .age-bar { height: 4px; background: var(--accent); border-radius: 2px; min-width: 2px; opacity: 0.7; }
+
+  /* Placeholder */
+  .placeholder { color: var(--text3); font-size: 12px; text-align: center; padding: 40px 20px; }
+
+  /* Tabs in detail */
+  .tab-row { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+  .tab-btn { padding: 8px 14px; font-size: 11px; font-weight: 600; color: var(--text3); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; letter-spacing: 0.04em; text-transform: uppercase; transition: color 0.15s, border-color 0.15s; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover { color: var(--text); }
+
+  /* Activity tabs */
+  .act-tab { background: var(--bg3); border: 1px solid var(--border2); color: var(--text3); border-radius: 5px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; letter-spacing: 0.03em; transition: all 0.15s; }
+  .act-tab:hover { color: var(--text2); }
+  .act-tab.active { background: rgba(108,142,245,0.15); border-color: var(--accent); color: var(--accent); }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .hidden { display: none !important; }
+
+  /* portfolio-value chart */
+  #pv-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  #pv-wrap .card-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+  #pv-container { position: relative; height: 120px; }
+</style>
+</head>
+<body>
+
+<!-- Upload screen -->
+<div id="upload-screen">
+  <div id="upload-zone" onclick="document.getElementById('folderInput').click()">
+    <div class="upload-icon">📁</div>
+    <h2>Portfolio Analyst</h2>
+    <p>Select your folder of daily <code>.xlsx</code> snapshot files</p>
+    <br>
+    <button class="btn-primary" onclick="event.stopPropagation(); document.getElementById('folderInput').click()">Choose Folder</button>
+  </div>
+  <input type="file" id="folderInput" webkitdirectory multiple>
+</div>
+
+<!-- Main app (hidden until data loaded) -->
+<div id="app" class="hidden">
+  <!-- Top bar -->
+  <div id="topbar">
+    <span class="logo">PORTFOLIO//ANALYST</span>
+    <div id="topbar-info">
+      <div class="stat-pill"><span class="label">Files</span><span class="val neu" id="tb-files">—</span></div>
+      <div class="stat-pill"><span class="label">Holdings</span><span class="val neu" id="tb-holdings">—</span></div>
+      <div class="stat-pill"><span class="label">Total Value</span><span class="val neu" id="tb-value">—</span></div>
+      <div class="stat-pill"><span class="label">Day Δ</span><span class="val neu" id="tb-delta">—</span></div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Snapshots</div>
+      <div id="date-list"></div>
+    </div>
+    <hr class="nav-divider" style="margin-top:auto">
+    <div style="padding:10px 14px">
+      <button class="btn-primary" style="width:100%;font-size:11px" onclick="document.getElementById('folderInput').click()">↑ Load more files</button>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div id="main">
+    <!-- Summary cards -->
+    <div class="cards-row" id="summary-cards">
+      <div class="card" id="c-total"><div class="card-label">Portfolio Value</div><div class="card-val" id="c-total-v">—</div><div class="card-sub" id="c-total-s">—</div></div>
+      <div class="card" id="c-change"><div class="card-label">Daily Change</div><div class="card-val" id="c-change-v">—</div><div class="card-sub" id="c-change-s">—</div></div>
+      <div class="card" id="c-gainers"><div class="card-label">Gainers / Losers</div><div class="card-val" id="c-gainers-v">—</div><div class="card-sub" id="c-gainers-s">—</div></div>
+      <div class="card" id="c-best"><div class="card-label">Best Performer</div><div class="card-val" id="c-best-v" style="font-size:14px">—</div><div class="card-sub" id="c-best-s">—</div></div>
+    </div>
+
+    <!-- Portfolio value chart -->
+    <div id="pv-wrap">
+      <div class="card-label">Portfolio Value — All Time</div>
+      <div id="pv-container"><canvas id="pvChart"></canvas></div>
+    </div>
+
+    <!-- Activity dashboard -->
+    <div id="activity-wrap" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;border-bottom:1px solid var(--border)">
+        <span class="table-title">Manager Activity — Daily Trading</span>
+        <div style="display:flex;gap:4px">
+          <button class="act-tab active" data-tab="assets" onclick="switchActTab('assets')">Assets changed</button>
+          <button class="act-tab" data-tab="shares" onclick="switchActTab('shares')">Shares traded</button>
+          <button class="act-tab" data-tab="money" onclick="switchActTab('money')">Money traded ₪</button>
+        </div>
+      </div>
+      <!-- legend -->
+      <div style="display:flex;gap:20px;padding:10px 16px 0;font-size:11px;color:var(--text2)">
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#3ecf8e;display:inline-block"></span>Buys</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#f56060;display:inline-block"></span>Sells / exits</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#6c8ef5;display:inline-block"></span>New entries</span>
+      </div>
+      <div style="position:relative;height:200px;padding:10px 16px 14px">
+        <canvas id="activityChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Holdings table + detail side by side -->
+    <div style="display:grid;grid-template-columns:1fr 420px;gap:16px;align-items:start">
+      <!-- Holdings table -->
+      <div class="table-wrap">
+        <div class="table-header">
+          <span class="table-title">Holdings</span>
+          <input class="search-box" id="search" placeholder="Search…" oninput="filterTable()">
+        </div>
+        <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+          <table id="holdings-table">
+            <thead>
+              <tr>
+                <th onclick="sortTable(0)">Name</th>
+                <th onclick="sortTable(1)" style="text-align:right">Value ₪</th>
+                <th onclick="sortTable(2)" style="text-align:right">% of Port.</th>
+                <th onclick="sortTable(3)" style="text-align:right">Shares</th>
+                <th onclick="sortTable(4)" style="text-align:right">Price</th>
+                <th onclick="sortTable(5)" style="text-align:right">Day Δ%</th>
+                <th onclick="sortTable(6)" style="text-align:right">Held (days)</th>
+              </tr>
+            </thead>
+            <tbody id="holdings-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <!-- Asset detail -->
+        <div id="detail-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title" id="dp-name">Select a holding</div>
+              <div class="panel-subtitle" id="dp-id">—</div>
+            </div>
+            <div id="detail-nav">
+              <button onclick="navigateStock(-1)" title="Previous (↑)">↑</button>
+              <button onclick="navigateStock(1)" title="Next (↓)">↓</button>
+            </div>
+          </div>
+          <div class="tab-row">
+            <button class="tab-btn active" onclick="showTab('price')">Price</button>
+            <button class="tab-btn" onclick="showTab('value')">Value ₪</button>
+            <button class="tab-btn" onclick="showTab('shares')">Shares</button>
+          </div>
+          <div id="detail-body">
+            <div id="detail-stats">
+              <div class="stat-row"><span class="sk">Value</span><span class="sv" id="ds-value">—</span></div>
+              <div class="stat-row"><span class="sk">Price</span><span class="sv" id="ds-price">—</span></div>
+              <div class="stat-row"><span class="sk">Shares</span><span class="sv" id="ds-shares">—</span></div>
+              <div class="stat-row"><span class="sk">Day Δ%</span><span class="sv" id="ds-change">—</span></div>
+              <div class="stat-row"><span class="sk">Portfolio %</span><span class="sv" id="ds-pct">—</span></div>
+              <div class="stat-row"><span class="sk">Market</span><span class="sv" id="ds-market">—</span></div>
+              <div class="stat-row"><span class="sk">Held (days)</span><span class="sv" id="ds-held">—</span></div>
+            </div>
+            <div id="chart-container">
+              <canvas id="assetChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Since last trade -->
+        <div class="since-wrap">
+          <div class="table-header">
+            <span class="table-title">Days Since Last Trade</span>
+          </div>
+          <div style="overflow-y:auto;max-height:180px">
+            <table>
+              <thead><tr><th>Asset</th><th style="text-align:right">Days unchanged</th></tr></thead>
+              <tbody id="since-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fieldNames = ["stockName","assetId","valueNis","portfolioPrecentage","nShares","changePrecent","price","precentBuy","type","warning","buy","coin","conv","market","dDailyNis","dailyPrecent"];
+
+let dataArray = [];
+let currentDate = null;
+let assetFocus = null;
+let assetChart = null;
+let pvChart = null;
+let sortCol = 1, sortDir = -1;
+let activeTab = 'price';
+
+function fixFloat(d, dec=4) {
+  const n = parseFloat(d);
+  return isNaN(n) ? '—' : n.toFixed(dec);
+}
+function convD(i, d) {
+  if (d === undefined || d === null || d === '') return '—';
+  switch(i) {
+    case 3: return fixFloat(d, 2);
+    case 5: return fixFloat(d, 2);
+    case 7: return fixFloat(d, 4);
+    case 12: return fixFloat(d, 4);
+    case 13: return String(d).substring(0, 5);
+    case 15: return fixFloat(d, 2);
+    default: return d;
+  }
+}
+function fmt(n, dec=0) {
+  if (n === undefined || n === null || isNaN(n)) return '—';
+  return Number(n).toLocaleString('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+}
+function fmtShort(n) {
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(2)+'M';
+  if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return n.toFixed(0);
+}
+
+document.getElementById('folderInput').addEventListener('change', async (e) => {
+  const files = [...e.target.files].filter(f => f.name.endsWith('.xlsx'));
+  if (!files.length) return;
+
+  dataArray = [];
+  for (const file of files) {
+    const ab = await file.arrayBuffer();
+    const wb = XLSX.read(ab);
+    wb.SheetNames.forEach(sn => {
+      const sheet = wb.Sheets[sn];
+      const data = XLSX.utils.sheet_to_json(sheet);
+      const rows = data.slice(5, -1).map((row) => {
+        const r = {};
+        Object.entries(row).forEach(([k, v], i) => { r[fieldNames[i]] = v; });
+        return r;
+      });
+      const totalRaw = data.slice(-1)[0];
+      const totalVal = parseFloat(String(Object.values(totalRaw)[2]).replaceAll(',','')) || 0;
+      rows.push({ stockName: 'Total', assetId: 'Total', valueNis: totalVal });
+      const datePart = file.name.split(/[_\.]/)[1] || file.name;
+      dataArray.push({ date: datePart, file: file.name, data: rows });
+    });
+  }
+  dataArray.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  document.getElementById('upload-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+
+  buildSidebar();
+  buildPortfolioChart();
+  buildActivityChart();
+  showDate(dataArray[0].date);
+  updateTopbar();
+});
+
+function buildSidebar() {
+  const list = document.getElementById('date-list');
+  list.innerHTML = '';
+  dataArray.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'date-item';
+    el.dataset.date = item.date;
+    const holdings = item.data.filter(r => r.assetId !== 'Total').length;
+    el.innerHTML = `<span class="date-num">${item.date}</span><span class="badge">${holdings}</span>`;
+    el.onclick = () => showDate(item.date);
+    list.appendChild(el);
+  });
+}
+
+function updateTopbar() {
+  document.getElementById('tb-files').textContent = dataArray.length;
+  const latest = dataArray[0];
+  const holdings = latest.data.filter(r => r.assetId !== 'Total');
+  document.getElementById('tb-holdings').textContent = holdings.length;
+  const total = latest.data.find(r => r.assetId === 'Total');
+  document.getElementById('tb-value').textContent = total ? '₪' + fmtShort(total.valueNis) : '—';
+  // Day delta
+  if (dataArray.length >= 2) {
+    const t0 = latest.data.find(r => r.assetId === 'Total');
+    const t1 = dataArray[1].data.find(r => r.assetId === 'Total');
+    if (t0 && t1) {
+      const d = t0.valueNis - t1.valueNis;
+      const el = document.getElementById('tb-delta');
+      el.textContent = (d >= 0 ? '+' : '') + '₪' + fmtShort(d);
+      el.className = 'val ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : 'neu');
+    }
+  }
+}
+
+function buildPortfolioChart() {
+  const labels = [...dataArray].reverse().map(d => d.date);
+  const values = [...dataArray].reverse().map(d => {
+    const t = d.data.find(r => r.assetId === 'Total');
+    return t ? t.valueNis : 0;
+  });
+  const ctx = document.getElementById('pvChart').getContext('2d');
+  if (pvChart) pvChart.destroy();
+  pvChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#6c8ef5',
+        backgroundColor: 'rgba(108,142,245,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: values.length > 30 ? 0 : 3,
+        pointHoverRadius: 5,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => '₪' + fmt(ctx.raw) }
+      }},
+      scales: {
+        x: { ticks: { color: '#555870', font: { size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#555870', font: { size: 10 }, callback: v => '₪' + fmtShort(v) }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+function computeHeldDays(assetId) {
+  const latestIdx = 0;
+  const latestRow = dataArray[latestIdx].data.find(r => r.assetId === assetId);
+  if (!latestRow) return 0;
+  const idx = dataArray.slice(1).findIndex(prev => {
+    const pr = prev.data.find(r => r.assetId === assetId);
+    return !pr || pr.nShares !== latestRow.nShares;
+  });
+  return idx === -1 ? dataArray.length - 1 : idx;
+}
+
+function showDate(date) {
+  currentDate = date;
+  document.querySelectorAll('.date-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.date === date);
+  });
+  const item = dataArray.find(i => i.date === date);
+  if (!item) return;
+  const holdings = item.data.filter(r => r.assetId !== 'Total');
+  const total = item.data.find(r => r.assetId === 'Total');
+
+  // Summary cards
+  const totalVal = total ? total.valueNis : 0;
+  document.getElementById('c-total-v').textContent = '₪' + fmt(totalVal);
+  document.getElementById('c-total-s').textContent = date;
+
+  // Day change
+  const prevItem = dataArray[dataArray.findIndex(d => d.date === date) + 1];
+  if (prevItem) {
+    const prevTotal = prevItem.data.find(r => r.assetId === 'Total');
+    if (prevTotal) {
+      const d = totalVal - prevTotal.valueNis;
+      const pct = ((d / prevTotal.valueNis) * 100).toFixed(2);
+      const cv = document.getElementById('c-change-v');
+      cv.textContent = (d >= 0 ? '+' : '') + '₪' + fmtShort(d);
+      cv.className = 'card-val ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : 'neu');
+      document.getElementById('c-change-s').textContent = (d >= 0 ? '+' : '') + pct + '% vs prev day';
+      document.getElementById('c-change').className = 'card ' + (d > 0 ? 'green' : d < 0 ? 'red' : '');
+    }
+  } else {
+    document.getElementById('c-change-v').textContent = '—';
+    document.getElementById('c-change-s').textContent = 'No previous day';
+  }
+
+  // Gainers/Losers
+  const gainers = holdings.filter(r => parseFloat(r.changePrecent) > 0).length;
+  const losers = holdings.filter(r => parseFloat(r.changePrecent) < 0).length;
+  document.getElementById('c-gainers-v').textContent = gainers + ' / ' + losers;
+  document.getElementById('c-gainers-s').textContent = (holdings.length - gainers - losers) + ' unchanged';
+
+  // Best performer
+  const best = holdings.reduce((b, r) => {
+    const v = parseFloat(r.changePrecent) || 0;
+    return v > (parseFloat(b.changePrecent) || 0) ? r : b;
+  }, holdings[0]);
+  if (best) {
+    document.getElementById('c-best-v').textContent = best.stockName || best.assetId;
+    document.getElementById('c-best-s').textContent = '+' + fixFloat(best.changePrecent, 2) + '%';
+    document.getElementById('c-best-s').className = 'card-sub pos';
+  }
+
+  // Build held days map
+  const heldMap = {};
+  holdings.forEach(r => { heldMap[r.assetId] = computeHeldDays(r.assetId); });
+
+  // Holdings table
+  buildTable(holdings, heldMap);
+
+  // Since table
+  buildSinceTable(holdings, heldMap);
+}
+
+let tableData = [];
+function buildTable(holdings, heldMap) {
+  tableData = holdings.map(r => ({
+    name: r.stockName || r.assetId,
+    value: parseFloat(r.valueNis) || 0,
+    pct: parseFloat(r.portfolioPrecentage) || 0,
+    shares: r.nShares,
+    price: parseFloat(r.price) || 0,
+    change: parseFloat(r.changePrecent) || 0,
+    held: heldMap[r.assetId] || 0,
+    assetId: r.assetId,
+    raw: r
+  }));
+  renderTable();
+}
+
+function renderTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  let rows = tableData.filter(r => !search || r.name.toLowerCase().includes(search) || String(r.assetId).includes(search));
+  rows.sort((a, b) => {
+    const cols = ['name','value','pct','shares','price','change','held'];
+    const key = cols[sortCol];
+    const av = typeof a[key] === 'string' ? a[key].toLowerCase() : a[key];
+    const bv = typeof b[key] === 'string' ? b[key].toLowerCase() : b[key];
+    return av < bv ? sortDir : av > bv ? -sortDir : 0;
+  });
+  const tbody = document.getElementById('holdings-tbody');
+  tbody.innerHTML = rows.map(r => `
+    <tr onclick="trackStock('${r.assetId}')" class="${assetFocus === r.assetId ? 'selected' : ''}">
+      <td title="${r.name}">${r.name}</td>
+      <td class="num">₪${fmt(r.value)}</td>
+      <td class="num">${r.pct.toFixed(2)}%</td>
+      <td class="num">${r.shares !== undefined ? r.shares : '—'}</td>
+      <td class="num">${r.price > 0 ? fmt(r.price, 2) : '—'}</td>
+      <td class="num"><span class="change-badge ${r.change > 0 ? 'pos' : r.change < 0 ? 'neg' : 'neu'}">${r.change > 0 ? '+' : ''}${r.change.toFixed(2)}%</span></td>
+      <td class="num">${r.held}</td>
+    </tr>`).join('');
+  // update sort headers
+  document.querySelectorAll('thead th').forEach((th, i) => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (i === sortCol) th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  });
+}
+
+function sortTable(col) {
+  if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = col === 0 ? 1 : -1; }
+  renderTable();
+}
+function filterTable() { renderTable(); }
+
+function buildSinceTable(holdings, heldMap) {
+  const maxDays = Math.max(...Object.values(heldMap), 1);
+  const sorted = [...holdings].sort((a, b) => (heldMap[b.assetId]||0) - (heldMap[a.assetId]||0));
+  document.getElementById('since-tbody').innerHTML = sorted.map(r => {
+    const d = heldMap[r.assetId] || 0;
+    const w = Math.max(4, Math.round((d / maxDays) * 80));
+    return `<tr>
+      <td>${r.stockName || r.assetId}</td>
+      <td class="num">
+        <div class="age-bar-wrap">
+          <div class="age-bar" style="width:${w}px;opacity:${0.3+0.7*(d/maxDays)}"></div>
+          <span style="font-family:var(--font);font-size:11px;color:var(--text2)">${d}</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function trackStock(assetId) {
+  assetFocus = assetId;
+  document.querySelectorAll('tbody tr').forEach((tr, i) => {
+    const rows = [...document.getElementById('holdings-tbody').querySelectorAll('tr')];
+    rows.forEach(r => r.classList.remove('selected'));
+    const match = rows.find(r => r.onclick.toString().includes(`'${assetId}'`));
+    if (match) match.classList.add('selected');
+  });
+  renderTable();
+
+  const chartData = buildChartData(assetId);
+  const latest = dataArray[0].data.find(r => r.assetId === assetId);
+  if (latest) {
+    document.getElementById('dp-name').textContent = latest.stockName || assetId;
+    document.getElementById('dp-id').textContent = 'ID: ' + assetId;
+    document.getElementById('ds-value').textContent = latest.valueNis ? '₪' + fmt(parseFloat(latest.valueNis)) : '—';
+    document.getElementById('ds-price').textContent = latest.price !== undefined ? fmt(parseFloat(latest.price), 2) : '—';
+    document.getElementById('ds-shares').textContent = latest.nShares !== undefined ? latest.nShares : '—';
+    const ch = parseFloat(latest.changePrecent);
+    const chEl = document.getElementById('ds-change');
+    chEl.textContent = isNaN(ch) ? '—' : (ch >= 0 ? '+' : '') + ch.toFixed(2) + '%';
+    chEl.style.color = ch > 0 ? 'var(--green)' : ch < 0 ? 'var(--red)' : 'var(--text)';
+    document.getElementById('ds-pct').textContent = latest.portfolioPrecentage !== undefined ? fixFloat(latest.portfolioPrecentage, 2) + '%' : '—';
+    document.getElementById('ds-market').textContent = latest.market ? String(latest.market).substring(0,8) : '—';
+    document.getElementById('ds-held').textContent = computeHeldDays(assetId);
+  }
+  drawAssetChart(chartData);
+}
+
+function buildChartData(assetId) {
+  return [...dataArray].reverse().map(item => {
+    const row = item.data.find(r => r.assetId === assetId);
+    return {
+      date: item.date,
+      price: row ? (parseFloat(row.price) || 0) : 0,
+      value: row ? (parseFloat(row.valueNis) || 0) : 0,
+      shares: row ? (parseFloat(row.nShares) || 0) : 0
+    };
+  });
+}
+
+function showTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().includes(tab)));
+  if (assetFocus) {
+    const chartData = buildChartData(assetFocus);
+    drawAssetChart(chartData);
+  }
+}
+
+function drawAssetChart(chartData) {
+  const ctx = document.getElementById('assetChart').getContext('2d');
+  if (assetChart) assetChart.destroy();
+  const labels = chartData.map(d => d.date);
+  const yKey = activeTab; // price, value, shares
+  const values = chartData.map(d => d[yKey]);
+  const isUp = values[values.length-1] >= values[0];
+  assetChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: isUp ? '#3ecf8e' : '#f56060',
+        backgroundColor: isUp ? 'rgba(62,207,142,0.07)' : 'rgba(245,96,96,0.07)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: values.length > 20 ? 0 : 3,
+        pointHoverRadius: 5,
+        borderWidth: 1.5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => {
+          const v = ctx.raw;
+          if (activeTab === 'value') return '₪' + fmt(v);
+          if (activeTab === 'price') return fmt(v, 2);
+          return v;
+        }}
+      }},
+      scales: {
+        x: { ticks: { color: '#555870', font: { size: 10 }, maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#555870', font: { size: 10 }, callback: v => {
+          if (activeTab === 'value') return '₪' + fmtShort(v);
+          return fmtShort(v);
+        }}, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+function navigateStock(dir) {
+  if (!assetFocus || !currentDate) return;
+  const item = dataArray.find(d => d.date === currentDate);
+  if (!item) return;
+  const holdings = item.data.filter(r => r.assetId !== 'Total');
+  const idx = holdings.findIndex(r => r.assetId === assetFocus);
+  const next = holdings[idx + dir];
+  if (next) trackStock(next.assetId);
+}
+
+
+// ── Activity dashboard ──────────────────────────────────────────────
+let activityChart = null;
+let actTab = 'assets';
+
+function buildActivityChart() {
+  const data = computeActivityData();
+  if (!data.length) return;
+  const labels = data.map(d => d.date);
+  let datasets;
+
+  if (actTab === 'assets') {
+    datasets = [
+      { label: 'Adds to existing', data: data.map(d => d.buyAdds),
+        backgroundColor: 'rgba(62,207,142,0.75)', stack: 'a' },
+      { label: 'New entries', data: data.map(d => d.newEntries),
+        backgroundColor: 'rgba(108,142,245,0.75)', stack: 'a' },
+      { label: 'Sells / exits', data: data.map(d => -(d.sellCount)),
+        backgroundColor: 'rgba(245,96,96,0.75)', stack: 'b' }
+    ];
+  } else if (actTab === 'shares') {
+    datasets = [
+      { label: 'Shares bought', data: data.map(d => d.sharesBought), backgroundColor: 'rgba(62,207,142,0.75)', stack: 'a' },
+      { label: 'Shares sold',   data: data.map(d => -d.sharesSold),  backgroundColor: 'rgba(245,96,96,0.75)',  stack: 'b' }
+    ];
+  } else {
+    datasets = [
+      { label: 'Money in ₪',  data: data.map(d => d.moneyBought), backgroundColor: 'rgba(62,207,142,0.75)', stack: 'a' },
+      { label: 'Money out ₪', data: data.map(d => -d.moneySold),  backgroundColor: 'rgba(245,96,96,0.75)',  stack: 'b' }
+    ];
+  }
+
+  const ctx = document.getElementById('activityChart').getContext('2d');
+  if (activityChart) activityChart.destroy();
+  activityChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = Math.abs(ctx.raw);
+              const sign = ctx.raw < 0 ? '−' : '+';
+              if (actTab === 'money') return sign + '₪' + fmt(v);
+              if (actTab === 'shares') return sign + fmt(v, 2) + ' shares';
+              return sign + v + ' assets';
+            }
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: '#555870', font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: 'rgba(255,255,255,0.03)' } },
+        y: { stacked: true, ticks: { color: '#555870', font: { size: 10 }, callback: v => {
+          if (actTab === 'money') return '₪' + fmtShort(Math.abs(v));
+          return Math.abs(v);
+        }}, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+function switchActTab(tab) {
+  actTab = tab;
+  document.querySelectorAll('.act-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  buildActivityChart();
+}
+
+// ── Improved computeActivityData with sell count ────────────────────
+function computeActivityData() {
+  const ordered = [...dataArray].reverse();
+  const result = [];
+  for (let i = 1; i < ordered.length; i++) {
+    const today = ordered[i];
+    const prev  = ordered[i - 1];
+    const todayH = today.data.filter(r => r.assetId !== 'Total');
+    const prevH  = prev.data.filter(r => r.assetId !== 'Total');
+    const prevMap = {};
+    prevH.forEach(r => { prevMap[r.assetId] = r; });
+    const todayMap = {};
+    todayH.forEach(r => { todayMap[r.assetId] = r; });
+
+    let newEntries = 0, buyAdds = 0, sellReduces = 0, exits = 0;
+    let sharesBought = 0, sharesSold = 0, moneyBought = 0, moneySold = 0;
+
+    todayH.forEach(r => {
+      const p = prevMap[r.assetId];
+      const sharesNow = parseFloat(r.nShares) || 0;
+      const priceNow  = parseFloat(r.price)   || 0;
+      if (!p) {
+        newEntries++;
+        sharesBought += sharesNow;
+        moneyBought  += sharesNow * priceNow;
+      } else {
+        const sharesPrev = parseFloat(p.nShares) || 0;
+        const delta = sharesNow - sharesPrev;
+        if (delta > 0.0001) {
+          buyAdds++;
+          sharesBought += delta;
+          moneyBought  += delta * priceNow;
+        } else if (delta < -0.0001) {
+          sellReduces++;
+          sharesSold += Math.abs(delta);
+          moneySold  += Math.abs(delta) * priceNow;
+        }
+      }
+    });
+
+    prevH.forEach(p => {
+      if (!todayMap[p.assetId]) {
+        exits++;
+        const sp = parseFloat(p.nShares) || 0;
+        const pp = parseFloat(p.price)   || 0;
+        sharesSold += sp;
+        moneySold  += sp * pp;
+      }
+    });
+
+    result.push({
+      date: today.date,
+      newEntries, buyAdds, sellReduces, exits,
+      assetsChanged: newEntries + buyAdds + sellReduces + exits,
+      sellCount: sellReduces + exits,
+      sharesBought, sharesSold,
+      moneyBought,  moneySold
+    });
+  }
+  return result;
+}
+
+window.addEventListener('keydown', e => {
+  if (!['ArrowUp','ArrowDown'].includes(e.key)) return;
+  e.preventDefault();
+  navigateStock(e.key === 'ArrowUp' ? -1 : 1);
+});
+</script>
+</body>
+</html>
