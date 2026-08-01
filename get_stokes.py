@@ -38,25 +38,25 @@ import time
 import smtplib
 from email.mime.text import MIMEText
 
-def send_email_alert(subject, body, to_email):
+def send_email_alert(subject, body):
     # Setup SMTP configuration (Example using Gmail)
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
-    sender_email = "yossi.lev.home@gmail.com"
+    sender_email = os.getenv("MAIL_USER")
     sender_password = GMAIL_APP_PASSWORD
 
     # Create message
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = sender_email
-    msg["To"] = to_email
+    msg["To"] = sender_email
 
     # Connect and send
     try:
         with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls() # Secure the connection
             server.login(sender_email, sender_password)
-            server.sendmail(sender_email, to_email, msg.as_string())
+            server.sendmail(sender_email, sender_email, msg.as_string())
         print("Email sent successfully!")
     except Exception as e:
         print(f"Error sending email: {e}")
@@ -239,6 +239,10 @@ try:
         new_main_path = os.path.join(main_folder, os.path.basename(new_name))
         os.rename(new_name, new_main_path)
         print(f"File moved to: {new_main_path}")
+        send_email_alert(
+            subject="Portfolio File saved to backup",
+            body=f"The portfolio file {os.path.basename(new_name)} has been saved to backup."
+        )
     elif user_choice == 'G':
         main_folder = os.path.join("/Users/yossilev/automation/bank", "bank_data/backupG/")
         if not os.path.exists(main_folder):
@@ -248,15 +252,13 @@ try:
         print(f"File moved to: {new_main_path}")
         send_email_alert(
             subject="Portfolio File saved to backupG",
-            body=f"The portfolio file {os.path.basename(new_name)} has been saved to backupG.",
-            to_email="yossi.lev.home@gmail.com"
+            body=f"The portfolio file {os.path.basename(new_name)} has been saved to backupG."
         )
     elif user_choice == 'D':
         os.remove(new_name)
         send_email_alert(
             subject="Portfolio File Deleted",
-            body=f"The portfolio file {os.path.basename(new_name)} has been deleted.",
-            to_email="yossi.lev.home@gmail.com"
+            body=f"The portfolio file {os.path.basename(new_name)} has been deleted."
         )
         print("File deleted.")
     else:
@@ -264,8 +266,7 @@ try:
 except Exception as outer_error:
     send_email_alert(
         subject="Failed to retrieve portfolio data",
-        body=f"The get stokes script encountered an error: {outer_error}",
-        to_email="yossi.lev.home@gmail.com"
+        body=f"The get stokes script encountered an error: {outer_error}"
     )
     # This runs if the login itself failed (e.g., wrong password or timeout)
     print(f"failed: {outer_error}")
